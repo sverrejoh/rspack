@@ -49,9 +49,9 @@ use crate::{
   CodeGenerationRuntimeRequirementsWrite, Compilation, ConcatenatedModuleIdent, ConcatenationScope,
   ConditionalInitFragment, ConnectionState, Context, DEFAULT_EXPORT, DEFAULT_EXPORT_ATOM,
   DependenciesBlock, Dependency, DependencyCodeGenerationRef, DependencyId, DependencyType,
-  ExportInfo, ExportProvided, ExportsArgument, ExportsInfoArtifact, ExportsInfoData, ExportsType,
-  FactoryMeta, ImportedByDeferModulesArtifact, InitFragment, InitFragmentStage, LibIdentOptions,
-  Module, ModuleArgument, ModuleCodeGenerationContext, ModuleGraph, ModuleGraphCacheArtifact,
+  ExportInfo, ExportProvided, ExportsArgument, ExportsInfoArtifact, ExportsType, FactoryMeta,
+  ImportedByDeferModulesArtifact, InitFragment, InitFragmentStage, LibIdentOptions, Module,
+  ModuleArgument, ModuleCodeGenerationContext, ModuleGraph, ModuleGraphCacheArtifact,
   ModuleGraphConnection, ModuleIdentifier, ModuleLayer, ModuleStaticCache, ModuleType,
   NAMESPACE_OBJECT_EXPORT, ParserOptions, Resolve, RuntimeCondition, RuntimeGlobals, RuntimeSpec,
   SideEffectsStateArtifact, SourceType, URLStaticMode, UsageState, UsedName, UsedNameItem,
@@ -2865,16 +2865,6 @@ impl ConcatenatedModule {
       .expect("should have module");
     let exports_type =
       module.get_exports_type(mg, mg_cache, exports_info_artifact, strict_esm_module);
-    // An external wrapper may still be mutated through another incoming edge.
-    let is_unknown_empty_commonjs = info.try_as_concatenated().is_some()
-      && is_unaccessed_commonjs_concatenation_candidate(module.as_ref())
-      && matches!(
-        exports_info_artifact
-          .get_exports_info_data(&info.id())
-          .other_exports_info()
-          .provided(),
-        Some(ExportProvided::Unknown)
-      );
     let is_module_deferred = matches!(info, ModuleInfo::External(info) if info.deferred)
       && !module.build_meta().has_top_level_await();
     let is_deferred = dep_deferred && is_module_deferred;
@@ -2932,20 +2922,6 @@ impl ConcatenatedModule {
         _ => {}
       }
     } else {
-      if is_unknown_empty_commonjs
-        && export_name
-          .first()
-          .is_some_and(|name| !matches!(name.as_str(), "default" | "__esModule"))
-      {
-        return FinalBindingResult::from_binding(Binding::Raw(RawBinding {
-          raw_name: "/* missing export from locally empty CommonJS module */ undefined".into(),
-          ids: export_name[1..].to_vec(),
-          export_name,
-          info_id: *info_id,
-          comment: None,
-        }));
-      }
-
       match exports_type {
         ExportsType::Namespace => {}
         ExportsType::DefaultWithNamed => match export_name.first().map(|atom| atom.as_str()) {
@@ -3388,28 +3364,6 @@ pub fn is_esm_dep_like(dep: &dyn Dependency) -> bool {
       | DependencyType::EsmExportImport
       | DependencyType::CssImport
   )
-}
-
-fn is_unaccessed_commonjs_concatenation_candidate(module: &dyn Module) -> bool {
-  module.module_type().is_js_auto()
-    && !module.build_meta().esm()
-    && module.build_info().strict
-    && module.build_info().module_exports_accessed == Some(false)
-}
-
-/// Returns whether this module is globally export-dynamic while the JavaScript parser observed no
-/// supported access to its CommonJS export surface. This signal is only valid for concatenation and
-/// must be combined with incoming-edge checks that reject consumers requiring a CommonJS
-/// namespace/default object.
-pub fn is_unknown_empty_commonjs_for_concatenation(
-  module: &dyn Module,
-  exports_info: &ExportsInfoData,
-) -> bool {
-  is_unaccessed_commonjs_concatenation_candidate(module)
-    && matches!(
-      exports_info.other_exports_info().provided(),
-      Some(ExportProvided::Unknown)
-    )
 }
 
 pub fn find_new_name(old_name: &str, used_names: &HashSet<Atom>, extra_info: &[Atom]) -> Atom {
