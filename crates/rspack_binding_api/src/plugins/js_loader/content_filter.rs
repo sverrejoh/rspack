@@ -13,11 +13,13 @@
 //!
 //! Configuration comes from `RSPACK_LOADER_CONTENT_FILTER`, a JSON
 //! array. `loader` is matched as a substring of the loader request; a
-//! module whose current content contains none of `include` is skipped
-//! for that loader:
+//! module whose current content matches none of `include` (literal
+//! needles) or `includeRegex` (regular expressions) is skipped for
+//! that loader:
 //!
 //! ```json
-//! [{"loader": "transform.mjs", "include": ["createServerFn"]}]
+//! [{"loader": "transform.mjs", "include": ["createServerFn"],
+//!   "includeRegex": ["\\.\\s*handler\\s*\\("]}]
 //! ```
 //!
 //! The same variable is read by the JS loader runner in
@@ -38,6 +40,7 @@ pub static CONTENT_FILTER_CROSSED: AtomicU64 = AtomicU64::new(0);
 struct ContentGate {
   loader: String,
   include: Vec<String>,
+  include_regex: Vec<regex::bytes::Regex>,
 }
 
 fn gates() -> &'static Vec<ContentGate> {
@@ -70,8 +73,21 @@ fn gates() -> &'static Vec<ContentGate> {
               .collect()
           })
           .unwrap_or_default();
-        if !loader.is_empty() && !include.is_empty() {
-          out.push(ContentGate { loader, include });
+        let mut include_regex = Vec::new();
+        if let Some(list) = item.get("includeRegex").and_then(|v| v.as_array()) {
+          for pattern in list.iter().filter_map(|p| p.as_str()) {
+            match regex::bytes::Regex::new(pattern) {
+              Ok(re) => include_regex.push(re),
+              Err(e) => eprintln!("[rspack] invalid content filter regex {pattern:?}: {e}"),
+            }
+          }
+        }
+        if !loader.is_empty() && (!include.is_empty() || !include_regex.is_empty()) {
+          out.push(ContentGate {
+            loader,
+            include,
+            include_regex,
+          });
         }
       }
     }
@@ -81,9 +97,7 @@ fn gates() -> &'static Vec<ContentGate> {
 
 fn stats_enabled() -> bool {
   static ENABLED: OnceLock<bool> = OnceLock::new();
-  *ENABLED.get_or_init(|| {
-    std::env::var("RSPACK_LOADER_CONTENT_FILTER_STATS").as_deref() == Ok("1")
-  })
+  *ENABLED.get_or_init(|| std::env::var("RSPACK_LOADER_CONTENT_FILTER_STATS").as_deref() == Ok("1"))
 }
 
 /// True when this loader is gated and the module content cannot match.
@@ -103,7 +117,8 @@ pub fn should_skip(loader_request: &str, content: Option<&Content>) -> bool {
   let matched = gate
     .include
     .iter()
-    .any(|m| memchr::memmem::find(bytes, m.as_bytes()).is_some());
+    .any(|m| memchr::memmem::find(bytes, m.as_bytes()).is_some())
+    || gate.include_regex.iter().any(|re| re.is_match(bytes));
   if matched {
     CONTENT_FILTER_CROSSED.fetch_add(1, Ordering::Relaxed);
     false

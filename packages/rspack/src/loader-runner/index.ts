@@ -1074,7 +1074,13 @@ export async function runLoaders(
             continue;
           }
           // Skip as identity when the content cannot match this loader.
-          if (contentFilterShouldSkip(currentLoaderObject.request, content)) {
+          if (
+            contentFilterShouldSkip(
+              currentLoaderObject.request,
+              content,
+              currentLoaderObject.options,
+            )
+          ) {
             currentLoaderObject.normalExecuted = true;
             continue;
           }
