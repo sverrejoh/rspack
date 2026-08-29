@@ -58,6 +58,7 @@ derive_more                            = { workspace = true, features = ["debug"
 futures                                = { workspace = true }
 glob                                   = { workspace = true }
 heck                                   = { workspace = true }
+memchr                                 = { workspace = true }
 once_cell                              = { workspace = true }
 rayon                                  = { workspace = true }
 regex                                  = { workspace = true }

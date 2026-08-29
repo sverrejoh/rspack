@@ -37,12 +37,20 @@ pub(crate) async fn loader_should_yield(
         Ok(Some(should_yield))
       }
     }
-    LoaderState::Normal => Ok(Some(
-      !loader_context
-        .current_loader()
-        .request()
-        .starts_with(BUILTIN_LOADER_PREFIX),
-    )),
+    LoaderState::Normal => {
+      let current_loader = loader_context.current_loader();
+      if current_loader.request().starts_with(BUILTIN_LOADER_PREFIX) {
+        return Ok(Some(false));
+      }
+      // Skip the crossing entirely when the content cannot match.
+      if super::content_filter::should_skip(
+        current_loader.request().as_str(),
+        loader_context.content(),
+      ) {
+        return Ok(Some(false));
+      }
+      Ok(Some(true))
+    }
   }
 }
 

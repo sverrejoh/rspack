@@ -33,6 +33,7 @@ import {
   type LoaderContext,
 } from '../config/adapterRuleUse';
 import { NormalModule } from '../NormalModule';
+import { contentFilterShouldSkip } from './contentFilter';
 import type { ResolveContext } from '../Resolver';
 import { NonErrorEmittedError, type RspackError } from '../RspackError';
 import { JavaScriptTracer } from '../trace';
@@ -1070,6 +1071,11 @@ export async function runLoaders(
           if (currentLoaderObject.shouldYield()) break;
           if (currentLoaderObject.normalExecuted) {
             loaderContext.loaderIndex--;
+            continue;
+          }
+          // Skip as identity when the content cannot match this loader.
+          if (contentFilterShouldSkip(currentLoaderObject.request, content)) {
+            currentLoaderObject.normalExecuted = true;
             continue;
           }
 

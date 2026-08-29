@@ -3712,6 +3712,7 @@ dependencies = [
  "futures",
  "glob",
  "heck",
+ "memchr",
  "napi",
  "napi-derive",
  "once_cell",
