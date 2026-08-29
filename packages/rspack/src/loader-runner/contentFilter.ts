@@ -93,6 +93,34 @@ function countSkip(didSkip: boolean) {
 }
 
 /**
+ * Skipping must reproduce the runner's own normalization, or it is not
+ * an identity. `convertArgs` strips a leading UTF-8 BOM before handing
+ * content to a non-raw loader, so a loader that returns its input
+ * unchanged still strips the BOM; a skip has to do the same. Measured
+ * on a production build: 17 of 45,299 gated modules differ by exactly
+ * this and nothing else.
+ */
+export function contentFilterNormalizeOnSkip(
+  content: unknown,
+  isRaw: boolean,
+): unknown {
+  if (isRaw) return content;
+  if (typeof content === 'string') {
+    return content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
+  }
+  if (
+    Buffer.isBuffer(content) &&
+    content.length >= 3 &&
+    content[0] === 0xef &&
+    content[1] === 0xbb &&
+    content[2] === 0xbf
+  ) {
+    return content.toString('utf8').slice(1);
+  }
+  return content;
+}
+
+/**
  * True when this loader is gated and `content` cannot match, so the
  * loader's normal function can be skipped as identity.
  */

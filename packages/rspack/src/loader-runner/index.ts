@@ -33,7 +33,10 @@ import {
   type LoaderContext,
 } from '../config/adapterRuleUse';
 import { NormalModule } from '../NormalModule';
-import { contentFilterShouldSkip } from './contentFilter';
+import {
+  contentFilterNormalizeOnSkip,
+  contentFilterShouldSkip,
+} from './contentFilter';
 import type { ResolveContext } from '../Resolver';
 import { NonErrorEmittedError, type RspackError } from '../RspackError';
 import { JavaScriptTracer } from '../trace';
@@ -1081,6 +1084,10 @@ export async function runLoaders(
               currentLoaderObject.options,
             )
           ) {
+            content = contentFilterNormalizeOnSkip(
+              content,
+              !!currentLoaderObject.raw,
+            ) as typeof content;
             currentLoaderObject.normalExecuted = true;
             continue;
           }
