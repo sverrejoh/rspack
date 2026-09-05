@@ -1,4 +1,8 @@
 const { createHash } = require('node:crypto');
+const { createRequire } = require('node:module');
+const { JsSourceSnapshot } = createRequire(require.resolve('@rspack/core'))(
+  '@rspack/binding',
+);
 
 function digest(source) {
   const hash = createHash('sha256');
@@ -31,6 +35,28 @@ module.exports = {
             compiler.hooks.compilation.tap('SourceSnapshots', (compilation) => {
               compilation.hooks.processAssets.tap('SourceSnapshots', () => {
                 expect(compilation.getAssetSource('missing')).toBeUndefined();
+                compilation.emitAsset(
+                  'lazy.js',
+                  new OriginalSource('globalThis.lazy = 1;\n', 'lazy.ts'),
+                );
+                const materialize = rstest.spyOn(
+                  JsSourceSnapshot.prototype,
+                  'sourceAndMap',
+                );
+                try {
+                  const lazy = compilation.getAsset('lazy.js').source;
+                  expect(lazy.source()).toBe('globalThis.lazy = 1;\n');
+                  expect(lazy.size()).toBe(21);
+                  expect(materialize).not.toHaveBeenCalled();
+                  expect(lazy.map().sources).toEqual(['lazy.ts']);
+                  expect(materialize).toHaveBeenCalledTimes(1);
+                  lazy.sourceAndMap();
+                  lazy.updateHash(createHash('sha256'));
+                  expect(materialize).toHaveBeenCalledTimes(1);
+                } finally {
+                  materialize.mockRestore();
+                }
+                compilation.deleteAsset('lazy.js');
                 const variants = [
                   [
                     'mapped.js',
