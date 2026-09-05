@@ -36,7 +36,7 @@ use crate::{
   module_graph::JsModuleGraph,
   options::entry::JsEntryOptions,
   path_data::{JsPathData, PathWithInfo},
-  source::{JsSourceFromJs, JsSourceToJs},
+  source::{JsSourceFromJs, JsSourceSnapshot, JsSourceToJs},
   stats::{JsStats, JsStatsOptimizationBailout, create_stats_warnings},
   utils::callbackify,
 };
@@ -197,6 +197,18 @@ impl JsCompilation {
           .map(|s| JsSourceToJs::try_from(s.as_ref()))
       })
       .transpose()
+  }
+
+  #[napi]
+  pub fn get_asset_source_snapshot(&self, name: String) -> Result<Option<JsSourceSnapshot>> {
+    let compilation = self.as_ref()?;
+    Ok(
+      compilation
+        .assets()
+        .get(&name)
+        .and_then(|asset| asset.source.as_ref())
+        .map(|source| JsSourceSnapshot::new(source.clone())),
+    )
   }
 
   #[napi(getter, ts_return_type = "Array<Module>")]
