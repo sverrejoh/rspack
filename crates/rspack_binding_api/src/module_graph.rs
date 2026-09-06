@@ -9,6 +9,7 @@ use crate::{
   exports_info::JsExportsInfo,
   module::{ModuleObject, ModuleObjectRef},
   module_graph_connection::ModuleGraphConnectionWrapper,
+  module_graph_snapshot::{JsModuleGraphSnapshot, build_module_graph_snapshot},
 };
 
 #[napi]
@@ -269,5 +270,19 @@ impl JsModuleGraph {
       &compilation.async_modules_artifact,
       &module.identifier,
     ))
+  }
+
+  /// Return every module and every outgoing connection in one call.
+  ///
+  /// Equivalent to iterating `Compilation.modules`, reading `identifier()`,
+  /// `nameForCondition()` and `layer` on each module, calling
+  /// `getOutgoingConnectionsInOrder` and then reading `module`, `dependency`
+  /// and `getActiveState()` on every connection. Bulk consumers pay one
+  /// boundary crossing instead of several per edge, and the active state of
+  /// all edges is evaluated while the artifacts it reads are acquired once.
+  #[napi]
+  pub fn get_snapshot(&self) -> napi::Result<JsModuleGraphSnapshot> {
+    let (compilation, _) = self.as_ref()?;
+    Ok(build_module_graph_snapshot(compilation))
   }
 }
