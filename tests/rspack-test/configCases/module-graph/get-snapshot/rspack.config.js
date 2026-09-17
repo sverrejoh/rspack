@@ -122,6 +122,18 @@ function assertSnapshotMatchesGetters(compilation) {
   const states = new Set(Array.from(snapshot.edgeStates));
   expect(states.has(ModuleGraph.EDGE_STATE_ACTIVE)).toBe(true);
   expect(states.size).toBeGreaterThan(1);
+
+  // `nameForConditions` and `layers` are optional per module, so a comparison
+  // over a fixture whose modules all have a name and no layer holds for an
+  // encoder that hard-codes either column. Assert that both branches are
+  // genuinely present: the external module has no `nameForCondition`, and
+  // `layered.js` is matched by a rule that gives it a layer.
+  expect(snapshot.nameForConditions.filter((name) => name == null).length).toBe(
+    1,
+  );
+  expect(snapshot.layers.filter((layer) => layer != null)).toEqual([
+    'snapshot-layer',
+  ]);
 }
 
 class Plugin {
@@ -144,12 +156,21 @@ module.exports = {
     __dirname: false,
     __filename: false,
   },
+  // An external module has no `nameForCondition`, which is what makes the
+  // `nameForConditions` null branch reachable at all.
+  externals: {
+    'external-module': 'commonjs path',
+  },
   module: {
     rules: [
       {
         test: /\.css$/,
         use: [CssExtractRspackPlugin.loader, 'css-loader'],
         type: 'javascript/auto',
+      },
+      {
+        test: /layered\.js$/,
+        layer: 'snapshot-layer',
       },
     ],
   },
